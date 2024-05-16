@@ -1,0 +1,10 @@
+name: multimodal-SNN
+channels:
+  - conda-forge
+dependencies:
+  - jupyter
+  - matplotlib
+  - numpy
+  - pandas
+  - snntorch
+  - pytorch
