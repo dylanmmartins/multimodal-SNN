@@ -1,10 +1,16 @@
-name: multimodal-SNN
+# conda env create -f environment.yml
+name: mmSNN
 channels:
   - conda-forge
 dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
   - jupyter
   - matplotlib
   - numpy
   - pandas
   - snntorch
-  - pytorch
+  - pip:
+    - tonic
+    - torchdata
