@@ -5,6 +5,7 @@ from scipy.io import wavfile
 from glob import glob
 import os
 import numpy as np
+import scipy.signal
 
 
 def main(fpath):
@@ -47,8 +48,8 @@ def main(fpath):
             i += 1
 
     # normalize from 0 to 1
-    norm_audio_stimuli = audio_stimuli + np.abs(np.min(audio_stimuli))
-    norm_audio_stimuli = norm_audio_stimuli / np.max(norm_audio_stimuli)
+    # norm_audio_stimuli = audio_stimuli + np.abs(np.min(audio_stimuli))
+    # norm_audio_stimuli = norm_audio_stimuli / np.max(norm_audio_stimuli)
 
     # train/test split. every digit has the same frac in train/test, but
     # it's randomly sampled within each digit
@@ -69,8 +70,18 @@ def main(fpath):
     train_inds = np.array(sorted(train_inds))
     test_inds = np.array(sorted(test_inds))
 
-    X_train = norm_audio_stimuli[train_inds,:]
-    X_test = norm_audio_stimuli[test_inds,:]
+    X_train_wvfm = audio_stimuli[train_inds,:]
+    X_test_wvfm = audio_stimuli[test_inds,:]
+
+    X_train = np.zeros([np.size(X_train_wvfm,0), 129, 81])
+    X_test = np.zeros([np.size(X_test_wvfm,0), 129, 81])
+
+    audio_samp_rate = 8000 # Hz
+    for i in range(np.size(X_train_wvfm,0)):
+        _, _, X_train[i,:,:] = scipy.signal.spectrogram(X_train_wvfm[i,:], fs=audio_samp_rate)
+    for i in range(np.size(X_test_wvfm,0)):
+        _, _, X_test[i,:,:] = scipy.signal.spectrogram(X_test_wvfm[i,:], fs=audio_samp_rate)
+
     y_train = audio_labels[train_inds]
     y_test = audio_labels[test_inds]
 
