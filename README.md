@@ -3,7 +3,9 @@
 Important notebooks:
 
 Vision: visual_SNN.ipynb
+
 Audio: audiotry_SNN.ipynb
+
 Multimodal: population-3_integrate.ipynb
 
 
