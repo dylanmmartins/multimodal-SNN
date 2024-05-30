@@ -10,8 +10,8 @@ Multimodal: population-3_integrate.ipynb
 
 
 todo:
-- get audio working
-- train end to end
-- train individually — use half training data
-- quantify performance
-- 2nd learning: strengthening / weakening of weights
+- get audio working (Lucas)
+- train end to end (Lucas)
+- train individually — use half training data (Lucas)
+- quantify performance w/ noise, dropout (0,25,50,75,100) (Dylan)
+- 2nd learning: strengthening / weakening of weights (Abby)
