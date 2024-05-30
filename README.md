@@ -8,6 +8,8 @@ Audio: audiotry_SNN.ipynb
 
 Multimodal: population-3_integrate.ipynb
 
+Data located gdrive: https://drive.google.com/drive/folders/1rVnOwAiLXuUWsQnHZbDf2JkyP4nZxuQz
+
 
 todo:
 - get audio working (Lucas)
