@@ -151,8 +151,6 @@ def train_test_auditory(savepath=None):
     # and compare the neuron with the highest number of spikes
     # with the target
 
-    #print("train_printer created")
-
     loss = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=5e-4, betas=(0.9, 0.999))
 
@@ -222,4 +220,4 @@ def train_test_auditory(savepath=None):
 	
 
 if __name__ == '__main__':
-    train_test_auditory()
+    train_test_auditory('aud_v1')
