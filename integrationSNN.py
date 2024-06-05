@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from visualSNN import train_test_visual
 from torch.optim import Adam
 
+#print("welcome to the integration function")
+
 class MultimodalIntegration(nn.Module):
 	"""
 	Combine the outputs from the visual and auditory encoders into a single multimodal representation.
@@ -39,6 +41,7 @@ def main():
 	state_dict1 = torch.load('vis_v1.pt')
 	vismodel = VisNet(28*28).to(device)
 	vismodel.load_state_dict(state_dict1)
+	#print("loaded vismodel")
 
 	state_dict2 = torch.load('aud_v1.pt')
 	audmodel = AudNet().to(device)
@@ -47,7 +50,8 @@ def main():
 	intmodel = MultimodalIntegration(multimodal_size, output_size, beta).to_device()
 
 	# Define loss function and optimizer
-	loss_fn = nn.MSELoss() optimizer = Adam(net.parameters(), lr=0.01)
+	loss_fn = nn.MSELoss()
+	optimizer = Adam(net.parameters(), lr=0.01)
 
 	# Training data is output from visual and audio encoders
 	vis_spikes = torch.from_numpy(vis_spks).float()
