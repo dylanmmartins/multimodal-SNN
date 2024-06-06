@@ -68,7 +68,7 @@ class VisNet(nn.Module):
 		self.mem3 = mem3
 
 		return  torch.stack(output_spike_record, dim=0), torch.stack(output_memV_record, dim=0)
-	
+
 	def fwd_frozen(self, x):
 
 		mem1 = self.lif1.init_leaky()
