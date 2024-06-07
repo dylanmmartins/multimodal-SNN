@@ -165,8 +165,8 @@ def train_test_visual(savepath=None):
 				test_targets = test_targets.to(device)
 
 				# Test set forward pass
-				test_spk, test_mem = net(test_data.view(batch_size, -1))
-
+				#test_spk, test_mem = net(test_data.view(batch_size, -1))
+				test_spk, test_mem = net(test_data)
 				# Test set loss
 				test_loss = torch.zeros((1), dtype=dtype, device=device)
 				for step in range(net.num_steps):
@@ -178,7 +178,8 @@ def train_test_visual(savepath=None):
 
 					print(f"Epoch {epoch}, Iteration {iter_counter}, Train loss = {loss_hist[counter]:.2f} Test loss = {test_loss_hist[counter]:.2f} \n")
 
-					output, _ = net(data.view(batch_size, -1))
+					#output, _ = net(data.view(batch_size, -1))
+					output, _ = net(data)
 					_, idx = output.sum(dim=0).max(1)
 					acc = np.mean((targets == idx).detach().cpu().numpy())
 
