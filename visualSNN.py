@@ -33,6 +33,14 @@ class VisNet(nn.Module):
         self.fc4 = nn.Linear(num_last_hidden, num_output)
         self.lif4 = snn.Leaky(beta=beta)
 
+    def set_noise(self, noise_std=0, add_at='input'):
+
+        self.noise_level = noise_std
+
+        if add_at == 'input':
+            self.noise_method = 0
+        elif add_at == 'hidden':
+            self.noise_method = 1
 
     def forward(self, x):
 
@@ -78,6 +86,9 @@ class VisNet(nn.Module):
         last_hidden_spike_record = []
         last_hidden_output_memV_record = []
 
+        if self.noise_method == 0:
+            x = x + (self.noise_level * torch.randn_like(x))
+
         for step in range(self.num_steps):
 
             cur1 = self.fc1(x)
@@ -92,9 +103,17 @@ class VisNet(nn.Module):
             last_hidden_spike_record.append(spk3)
             last_hidden_output_memV_record.append(mem3)
 
-        return torch.stack(last_hidden_spike_record, dim=0), torch.stack(last_hidden_output_memV_record, dim=0)
+        sp_out = torch.stack(last_hidden_spike_record, dim=0)
+        mem_out = torch.stack(last_hidden_output_memV_record, dim=0)
 
-def train_test_visual(savepath):
+        if self.noise_method == 1:
+            sp_out = sp_out + (self.noise_level * torch.randn_like(sp_out))
+            mem_out = mem_out + (self.noise_level * torch.randn_like(mem_out))
+
+        return sp_out, mem_out
+    
+def train_test_visual(savename, noise_method, noise_std):
+
     data_path='/tmp/data/mnist'
 
     # Define a transform
@@ -124,6 +143,8 @@ def train_test_visual(savepath):
     net = VisNet(num_inputs=28*28).to(device)
     #print(net.device)
     # next(net.parameters()).is_cuda
+
+    net.set_noise(noise_std, add_at=noise_method)
 
     def print_batch_accuracy(data, targets, train=False):
         output, _ = net(data.view(batch_size, -1))
@@ -204,18 +225,13 @@ def train_test_visual(savepath):
             test_targets = test_targets.to(device)
 
             # Test set forward pass
-            test_spk, test_mem = net.fwd_frozen(test_data)
+            test_spk, test_mem = net.fwd_frozen(test_data.view(batch_size, -1))
             all_test_spk.append(test_spk)
             all_test_mem.append(test_mem)
             all_test_data.append(test_data)
             all_test_targets.append(test_targets)
 
-
-    visual_inputs = np.zeros([
-		len(all_test_spk)*np.size(all_test_spk[0],1),
-		28,
-		28
-	])
+    visual_inputs = np.zeros([len(all_test_spk)*np.size(all_test_spk[0],1), 28, 28])
     visual_labels = np.zeros(len(all_test_spk)*np.size(all_test_spk[0],1))
     for i in range(len(all_test_spk)):
         visinput = all_test_data[i]
@@ -226,12 +242,7 @@ def train_test_visual(savepath):
         visual_labels[ind_start:ind_end] = vistarg.numpy()
 
 
-        spike_outputs = np.zeros([
-		2,
-		81,
-		len(all_test_spk)*np.size(all_test_spk[0],1),
-		20
-	])
+    spike_outputs = np.zeros([2, 81, len(all_test_spk)*np.size(all_test_spk[0],1), 20])
     for i in range(len(all_test_spk)):
         spk = all_test_spk[i]
         mem = all_test_mem[i]
@@ -240,17 +251,25 @@ def train_test_visual(savepath):
         spike_outputs[0, :, ind_start:ind_end, :] = spk.numpy()
         spike_outputs[1, :, ind_start:ind_end, :] = mem.numpy()
 
-    np.savez(
-		savepath+'.npz',
-		inputs=visual_inputs,
-		labels=visual_labels,
-		outputs=spike_outputs
-	)
+    np.savez(savename+'.npz', inputs=visual_inputs, labels=visual_labels, outputs=spike_outputs)
 
-    torch.save(net.state_dict(), savepath+'.pt')
-
-
+    torch.save(net.state_dict(), savename+'.pt')
 
 
 if __name__ == '__main__':
-    train_test_visual('vis_test_1')
+
+    noise_method = 'input'
+
+    noise_levels = [0., 0.1, 0.2, 0.5, 1.0]
+    noise_names = ['0', '0p1', '0p2', '0p5', '1p0']
+
+    for i in range(len(noise_levels)):
+
+        nl = noise_levels[i]
+        nname = noise_names[i]
+
+        print('Training VisNet with {} noise with std of {}'.format(noise_method, nl))
+
+        train_test_visual('visnet_v2_{}_noise_{}'.format(noise_method, nname),
+                          noise_method=noise_method, noise_std=nl)
+        

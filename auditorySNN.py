@@ -116,7 +116,7 @@ class AudNet(nn.Module):
 		return torch.stack(last_hidden_spike_record, dim=0), torch.stack(last_hidden_output_memV_record, dim=0)
 
 
-def train_test_auditory(savepath=None):
+def train_test_auditory(savename):
 	
 	audio_stim = np.load('auditory_stimuli.npz') #load the mpz file as the auditory stimulus the keys are x_train, y_train, x_test, y_test
 	X_train = audio_stim['X_train'] #size of (2100, 129, 81) number of samples x frequency x time 
@@ -146,15 +146,14 @@ def train_test_auditory(savepath=None):
 	train_loader = DataLoader(training_dataset, batch_size=batch_size, shuffle=True, drop_last=True) 
 	test_loader = DataLoader(testing_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
-	num_epochs = 100 #control the number of epochs in the training
+	num_epochs = 100
 	loss_hist = []
 	test_loss_hist = []
 	counter = 0
 
 	input_sz = np.size(X_train, 1) #sets input size to  the second dimension of x_train. For us 129
-	# Load the network onto CUDA if available
+
 	net = AudNet(num_inputs=input_sz).to(device) #loads the data using 129 as the number of inputs
-	#print("network loaded")
 
 	# pass data into the network, sum the spikes over time
 	# and compare the neuron with the highest number of spikes
@@ -167,23 +166,21 @@ def train_test_auditory(savepath=None):
 	for epoch in range(num_epochs):
 		iter_counter = 0
 		train_batch = iter(train_loader)
-		#print(epoch)
+
 		# Minibatch training loop
 		for data, targets in train_batch:
 			data = data.to(device)
 			targets = targets.to(device)
-			#print(data)
-			#print(targets)
-			# forward pass
-			net.train()\
 
-   
-			#spk_rec, mem_rec = net(data.view(batch_size, -1)) #batch x freq * freq*num_steps x hidden 
-			spk_rec, mem_rec = net(data)
-			#spk_rec, mem_rec  = net.fwd_frozen(data)
-			#print("spk_rec, mem_rec")
-			# initialize the loss & sum over time
+			# forward pass
+			net.train()
+
+			spk_rec, mem_rec = net(data.view(batch_size, -1))
+
 			# loss_val = torch.zeros((1), dtype=dtype, device=device)
+			# for step in range(net.num_steps):
+			# 	loss_val += loss(mem_rec[step].to(torch.long), targets.to(torch.long))
+
 			loss_val = loss(mem_rec[-1], targets.type(torch.long))
 
 			# Gradient calculation + weight update
@@ -201,14 +198,8 @@ def train_test_auditory(savepath=None):
 				test_data = test_data.to(device)
 				test_targets = test_targets.to(device)
 
-				# Test set forward pass
-#				test_spk, test_mem = net(test_data.view(batch_size, -1))
-#				test_spk, test_mem  = net.fwd_frozen(test_data)
-				test_spk, test_mem = net(test_data)
-#				test_spk, test_mem = net.fwd_frozen(test_data)
-				# Test set loss
-				# test_loss = torch.zeros((1), dtype=dtype, device=device)
-				# for step in range(num_steps):
+				test_spk, test_mem = net(test_data.view(batch_size, -1))
+
 				test_loss = loss(test_mem[-1], test_targets.type(torch.long))
 				test_loss_hist.append(test_loss.item())
 
@@ -231,26 +222,19 @@ def train_test_auditory(savepath=None):
 		
 			iter_counter +=1
 
-	#print(net.state_dict())
-	#torch.save(net.state_dict(), savepath+'.pt')
+	output = []
+	output.append(audio_spikes)
+	output.append(audio_mem)
+		
+	np.savez(
+		savename+'.npz',
+		inputs = np.concatenate((X_train, X_test), axis=0),
+		labels=np.concatenate((y_train, y_test), axis=0, out=None),
+		outputs =output,
+	)
 
 
 if __name__ == '__main__':
-	train_test_auditory('aud_v1')
+
+	train_test_auditory('aud_v2')
  
- 
-
-
-
-
-output = []
-output.append(audio_spikes)
-output.append(audio_mem)
-     
-np.savez(
-
-	'auditory_stim_outputs.npz',
-	inputs = np.concatenate((X_train, X_test), axis=0),
-	labels=np.concatenate((y_train, y_test), axis=0, out=None),
-	outputs =output,
-	)
