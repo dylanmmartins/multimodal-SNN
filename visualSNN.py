@@ -32,6 +32,16 @@ class VisNet(nn.Module):
 		self.fc4 = nn.Linear(num_last_hidden, num_output)
 		self.lif4 = snn.Leaky(beta=beta)
 
+	def set_noise(self, noise_std=0, add_at='input'):
+
+		self.noise_level = noise_std
+
+		if add_at == 'input':
+			self.noise_method = 0
+		elif add_at == 'hidden':
+			self.noise_method = 1
+		
+
 
 	def forward(self, x):
 
@@ -44,7 +54,6 @@ class VisNet(nn.Module):
 		# Record the output layer
 		output_spike_record = []
 		output_memV_record = []
-
 
 		for step in range(self.num_steps):
 
@@ -78,6 +87,9 @@ class VisNet(nn.Module):
 		last_hidden_spike_record = []
 		last_hidden_output_memV_record = []
 
+		if self.noise_method == 0:
+			x = x + (self.noise_level * torch.randn_like(x))
+
 		for step in range(self.num_steps):
 
 			cur1 = self.fc1(x)
@@ -92,10 +104,17 @@ class VisNet(nn.Module):
 			last_hidden_spike_record.append(spk3)
 			last_hidden_output_memV_record.append(mem3)
 
-		return torch.stack(last_hidden_spike_record, dim=0), torch.stack(last_hidden_output_memV_record, dim=0)
+		sp_out = torch.stack(last_hidden_spike_record, dim=0)
+		mem_out = torch.stack(last_hidden_output_memV_record, dim=0)
+
+		if self.noise_method == 1:
+			sp_out = sp_out + (self.noise_level * torch.randn_like(sp_out))
+			mem_out = mem_out + (self.noise_level * torch.randn_like(mem_out))
+
+		return sp_out, mem_out
 
 
-def train_test_visual(savepath=None):
+def train_test_visual(savename, noise_method, noise_std):
 
 	# Dataloader arguments
 
@@ -126,6 +145,10 @@ def train_test_visual(savepath=None):
 
 	# Load the network onto CUDA if available
 	net = VisNet(num_inputs=28*28).to(device)
+
+	if (noise_std > 0) and (noise_method is not None):
+		net.set_noise(noise_std, add_at=noise_method)
+
 
 	loss = nn.CrossEntropyLoss()
 	optimizer = torch.optim.Adam(net.parameters(), lr=5e-4, betas=(0.9, 0.999))
@@ -238,14 +261,28 @@ def train_test_visual(savepath=None):
 		spike_outputs[1, :, ind_start:ind_end, :] = mem.numpy()
 
 	np.savez(
-		savepath+'.npz',
+		savename+'.npz',
 		inputs=visual_inputs,
 		labels=visual_labels,
 		outputs=spike_outputs
 	)
 
-	torch.save(net.state_dict(), savepath+'.pt')
+	torch.save(net.state_dict(), savename+'.pt')
 
 
 if __name__ == '__main__':
-	train_test_visual()
+
+	noise_method = 'input'
+
+	noise_levels = [0., 0.1, 0.2, 0.5, 1.0]
+	noise_names = ['0', '0p1', '0p2', '0p5', '1p0']
+
+	for i in range(len(noise_levels)):
+
+		nl = noise_levels[i]
+		nname = noise_names[i]
+
+		print('Training VisNet with {} noise with std of {}'.format(noise_method, nl))
+		train_test_visual('visnet_v2_{}_noise_{}'.format(noise_method, nname), noise_method=noise_method, noise_std=nl)
+ 
+

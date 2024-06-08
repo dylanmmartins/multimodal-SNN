@@ -39,7 +39,16 @@ class AudNet(nn.Module):
 		self.fc4 = nn.Linear(num_last_hidden, num_output)
 		self.lif4 = snn.Leaky(beta=beta)
 
+	def set_noise(self, noise_std=0, add_at='input'):
 
+		self.noise_level = noise_std
+
+		if add_at == 'input':
+			self.noise_method = 0
+		elif add_at == 'hidden':
+			self.noise_method = 1
+		
+	
 	def forward(self, x):
 
 		x.to(torch.float32) #converts x to a float32 
@@ -90,6 +99,9 @@ class AudNet(nn.Module):
 		last_hidden_spike_record = []
 		last_hidden_output_memV_record = []
 
+		if self.noise_method == 0:
+			x = x + (self.noise_level * torch.randn_like(x))
+
 
 		for step in range(self.num_steps):
 			#print(np.shape(x))
@@ -113,10 +125,17 @@ class AudNet(nn.Module):
 			last_hidden_spike_record.append(spk3)
 			last_hidden_output_memV_record.append(mem3)
 
-		return torch.stack(last_hidden_spike_record, dim=0), torch.stack(last_hidden_output_memV_record, dim=0)
+		sp_out = torch.stack(last_hidden_spike_record, dim=0)
+		mem_out = torch.stack(last_hidden_output_memV_record, dim=0)
+
+		if self.noise_method == 1:
+			sp_out = sp_out + (self.noise_level * torch.randn_like(sp_out))
+			mem_out = mem_out + (self.noise_level * torch.randn_like(mem_out))
+
+		return sp_out, mem_out
 
 
-def train_test_auditory(savepath=None):
+def train_test_auditory(savename, noise_std=0.0, noise_method=None):
 	
 	audio_stim = np.load('auditory_stimuli.npz') #load the mpz file as the auditory stimulus the keys are x_train, y_train, x_test, y_test
 	X_train = audio_stim['X_train'] #size of (2100, 129, 81) number of samples x frequency x time 
@@ -156,6 +175,9 @@ def train_test_auditory(savepath=None):
 	net = AudNet(num_inputs=input_sz).to(device) #loads the data using 129 as the number of inputs
 	#print("network loaded")
 
+	if (noise_std > 0) and (noise_method is not None):
+		net.set_noise(noise_std, add_at=noise_method)
+
 	# pass data into the network, sum the spikes over time
 	# and compare the neuron with the highest number of spikes
 	# with the target
@@ -175,8 +197,7 @@ def train_test_auditory(savepath=None):
 			#print(data)
 			#print(targets)
 			# forward pass
-			net.train()\
-
+			net.train()
    
 			#spk_rec, mem_rec = net(data.view(batch_size, -1)) #batch x freq * freq*num_steps x hidden 
 			spk_rec, mem_rec = net(data)
@@ -231,26 +252,31 @@ def train_test_auditory(savepath=None):
 		
 			iter_counter +=1
 
-	#print(net.state_dict())
-	#torch.save(net.state_dict(), savepath+'.pt')
+	output = np.array([audio_spikes, audio_mem])
+		
+	np.savez(
+		savename+'.npz',
+		inputs=X_test,
+		labels=y_test,
+		outputs=output
+	)
+
+	torch.save(net.state_dict(), savename+'.pt')
 
 
 if __name__ == '__main__':
-	train_test_auditory('aud_v1')
+
+	noise_method = 'input'
+
+	noise_levels = [0., 0.1, 0.2, 0.5, 1.0]
+	noise_names = ['0', '0p1', '0p2', '0p5', '1p0']
+
+	for i in range(len(noise_levels)):
+
+		nl = noise_levels[i]
+		nname = noise_names[i]
+
+		print('Training AudNet with {} noise with std of {}'.format(noise_method, nl))
+		train_test_auditory('audnet_v2_{}_noise_{}'.format(noise_method, nname), noise_std=nl, noise_method=noise_method)
  
- 
 
-
-
-
-output = []
-output.append(audio_spikes)
-output.append(audio_mem)
-     
-np.savez(
-
-	'auditory_stim_outputs.npz',
-	inputs = np.concatenate((X_train, X_test), axis=0),
-	labels=np.concatenate((y_train, y_test), axis=0, out=None),
-	outputs =output,
-	)

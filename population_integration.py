@@ -40,111 +40,7 @@ class MultimodalIntegration(nn.Module):
         cur3 = self.fc3(spk2)
         spk3, mem3 = self.lif3(cur3, mem3)
         return spk3, mem3
-
-# ## Hyperparameters
-beta = 0.9  # Decay rate of the LIF neuron
-hidden_size = 128  # Size of the hidden layer
-output_size = 10  # Output size for the final multimodal representation
-input_size = 40  # Correct input size based on concatenation of visual and auditory spikes
-
-# Load the visual outputs file
-visual_npzfile = np.load("visual_outputs.npz")
-print("Visual Outputs Keys:", visual_npzfile.keys())
-
-# Load the auditory outputs file
-audio_npzfile = np.load("auditory_stim_outputs.npz")
-print("Audio Outputs Keys:", audio_npzfile.keys())
-
-"""
-Visual Outputs Keys:
-'inputs', 'labels', 'outputs'
-
-Auditory Outputs Keys:
-'inputs', 'labels', 'spikes_output', 'mem_output'
-"""
-
-# Visual data
-vis_labels = visual_npzfile["labels"]  # (9984,)
-vis_outputs = visual_npzfile["outputs"]  # (2, 25, 9984, 50)
-vis_spks = np.transpose(vis_outputs[0, :, :, :], (1, 0, 2))  # (9984, 25, 50)
-
-# Auditory data
-aud_labels = audio_npzfile["labels"]  # (93000,)
-aud_spks_raw = audio_npzfile["spikes_output"]
-aud_spks = np.transpose(aud_spks_raw, (1, 0, 2))  # (93000, 25, 50)
-
-vis_rep = torch.from_numpy(vis_spks[0]).float()
-aud_rep = torch.from_numpy(aud_spks[0])
-
-# Concatenate the encoded spikes
-combined_spikes = torch.cat((vis_rep, aud_rep), dim=1)  # (25, 100)
-combined_spikes = combined_spikes.permute(1, 0)  # (100, 25)
-print(f"Shape of combined_spikes: {combined_spikes.shape}")
-
-net = MultimodalIntegration(input_size, hidden_size, output_size, beta)
-
-# Forward pass through the integration layer
-# multimodal_output, mem = net(combined_spikes)
-# print("Multimodal output spike vector:", multimodal_output)
-
-loss_fn = nn.CrossEntropyLoss()
-optimizer = Adam(net.parameters(), lr=0.01)
-
-# Training data is output from visual and audio encoders
-vis_spikes = torch.from_numpy(vis_spks).float()
-aud_spikes = torch.from_numpy(aud_spks).float()
-targets = torch.from_numpy(vis_labels).long()  # (9984,)
-
-# Training loop
-num_epochs = 10
-num_samples = min(vis_spikes.shape[0], aud_spikes.shape[0], targets.shape[0])  # Use the minimum size across datasets
-num_steps = 25  # Number of timesteps for the spike train
-
-for epoch in range(num_epochs):
-    epoch_loss = 0.0
-    for i in range(num_samples):
-        target = targets[i].unsqueeze(0)
-
-        # Concatenate output spike trains from single sensory encoders
-        spike_train = torch.cat((vis_spikes[i, :, :], aud_spikes[i, :, :]), dim=1)  # (25, 100)
-        print(f"Shape of spike_train: {spike_train.shape}")
-
-        # Initialize hidden states
-        mem1 = net.lif1.init_leaky()
-        mem2 = net.lif2.init_leaky()
-        mem3 = net.lif3.init_leaky()
-
-        # Accumulate loss over timesteps
-        total_loss = 0.0
-        optimizer.zero_grad()
-        for t in range(num_steps):
-            # Flatten the spike train for the current timestep
-            input_t = spike_train[t].view(1, -1)  # (1, 100)
-            print(f"Shape of input_t at timestep {t}: {input_t.shape}")
-
-            # Forward pass through the network for each timestep
-            spk3, mem3 = net(input_t)
-
-            # Compute loss for this timestep
-            loss = loss_fn(spk3, target)
-            total_loss += loss
-
-        # Backward pass and optimization
-        total_loss.backward()
-        optimizer.step()
-
-        epoch_loss += total_loss.item()
-
-    avg_loss = epoch_loss / num_samples
-    print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}')
-
-print("Training complete")
-
-# %% [markdown]
-# ## Inference
-
-# %% [markdown]
-# ### Plotting code
+    
 
 def do_and_plot_model_inference(visual_spikes, audio_spikes, targets, ex=0, hidden_size=81, audio_type="random"):
     """
@@ -202,18 +98,131 @@ def do_and_plot_model_inference(visual_spikes, audio_spikes, targets, ex=0, hidd
     plt.tight_layout()
     plt.show()
 
-# %% [markdown]
-# ### Visual and audio the same
 
-do_and_plot_model_inference(vis_spikes, aud_spikes, targets, ex=1, audio_type="visual_copy")
+def main():
 
-# %% [markdown]
-# ### Vision good but audio random
+    # ## Hyperparameters
+    beta = 0.9  # Decay rate of the LIF neuron
+    hidden_size = 128  # Size of the hidden layer
+    output_size = 10  # Output size for the final multimodal representation
+    input_size = 40  # Correct input size based on concatenation of visual and auditory spikes
 
-do_and_plot_model_inference(vis_spikes, aud_spikes, targets, ex=1, audio_type="random")
+    # Load the visual outputs file
+    visual_npzfile = np.load("visual_outputs.npz")
+    # print("Visual Outputs Keys:", visual_npzfile.keys())
 
-# %% [markdown]
-# # Questions and todo
-# 
-# * include audio hidden output
-# * how to convert multimodal output spike train into final answer
+    # Load the auditory outputs file
+    audio_npzfile = np.load("auditory_stim_outputs.npz")
+    # print("Audio Outputs Keys:", audio_npzfile.keys())
+
+    """
+    Visual Outputs Keys:
+    'inputs', 'labels', 'outputs'
+
+    Auditory Outputs Keys:
+    'inputs', 'labels', 'spikes_output', 'mem_output'
+    """
+
+    # Visual data
+    vis_labels = visual_npzfile["labels"]  # (9984,)
+    vis_outputs = visual_npzfile["outputs"]  # (2, 25, 9984, 50)
+    vis_spks = np.transpose(vis_outputs[0, :, :, :], (1, 0, 2))  # (9984, 25, 50)
+
+    # Auditory data
+    aud_labels = audio_npzfile["labels"]  # (93000,)
+    aud_spks_raw = audio_npzfile["spikes_output"]
+    aud_spks = np.transpose(aud_spks_raw, (1, 0, 2))  # (93000, 25, 50)
+
+    vis_rep = torch.from_numpy(vis_spks[0]).float()
+    aud_rep = torch.from_numpy(aud_spks[0])
+
+    # Concatenate the encoded spikes
+    combined_spikes = torch.cat((vis_rep, aud_rep), dim=1)  # (25, 100)
+    combined_spikes = combined_spikes.permute(1, 0)  # (100, 25)
+    print(f"Shape of combined_spikes: {combined_spikes.shape}")
+
+    net = MultimodalIntegration(input_size, hidden_size, output_size, beta)
+
+    # Forward pass through the integration layer
+    # multimodal_output, mem = net(combined_spikes)
+    # print("Multimodal output spike vector:", multimodal_output)
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = Adam(net.parameters(), lr=0.01)
+
+    # Training data is output from visual and audio encoders
+    vis_spikes = torch.from_numpy(vis_spks).float()
+    aud_spikes = torch.from_numpy(aud_spks).float()
+    targets = torch.from_numpy(vis_labels).long()  # (9984,)
+
+    # Training loop
+    num_epochs = 10
+    num_samples = min(vis_spikes.shape[0], aud_spikes.shape[0], targets.shape[0])  # Use the minimum size across datasets
+    num_steps = 25  # Number of timesteps for the spike train
+
+    for epoch in range(num_epochs):
+        epoch_loss = 0.0
+        for i in range(num_samples):
+            target = targets[i].unsqueeze(0)
+
+            # Concatenate output spike trains from single sensory encoders
+            spike_train = torch.cat((vis_spikes[i, :, :], aud_spikes[i, :, :]), dim=1)  # (25, 100)
+            print(f"Shape of spike_train: {spike_train.shape}")
+
+            # Initialize hidden states
+            mem1 = net.lif1.init_leaky()
+            mem2 = net.lif2.init_leaky()
+            mem3 = net.lif3.init_leaky()
+
+            # Accumulate loss over timesteps
+            total_loss = 0.0
+            optimizer.zero_grad()
+            for t in range(num_steps):
+                # Flatten the spike train for the current timestep
+                input_t = spike_train[t].view(1, -1)  # (1, 100)
+                print(f"Shape of input_t at timestep {t}: {input_t.shape}")
+
+                # Forward pass through the network for each timestep
+                spk3, mem3 = net(input_t)
+
+                # Compute loss for this timestep
+                loss = loss_fn(spk3, target)
+                total_loss += loss
+
+            # Backward pass and optimization
+            total_loss.backward()
+            optimizer.step()
+
+            epoch_loss += total_loss.item()
+
+        avg_loss = epoch_loss / num_samples
+        print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}')
+
+    print("Training complete")
+
+    # %% [markdown]
+    # ## Inference
+
+    # %% [markdown]
+    # ### Plotting code
+
+
+    # %% [markdown]
+    # ### Visual and audio the same
+
+    do_and_plot_model_inference(vis_spikes, aud_spikes, targets, ex=1, audio_type="visual_copy")
+
+    # %% [markdown]
+    # ### Vision good but audio random
+
+    do_and_plot_model_inference(vis_spikes, aud_spikes, targets, ex=1, audio_type="random")
+
+    # %% [markdown]
+    # # Questions and todo
+    # 
+    # * include audio hidden output
+    # * how to convert multimodal output spike train into final answer
+
+
+if __name__ == "__main__":
+    main()
