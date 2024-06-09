@@ -112,7 +112,7 @@ class VisNet(nn.Module):
 
         return sp_out, mem_out
     
-def train_test_visual(savename, noise_method, noise_std):
+def train_visual(savename):
 
     data_path='/tmp/data/mnist'
 
@@ -144,7 +144,7 @@ def train_test_visual(savename, noise_method, noise_std):
     #print(net.device)
     # next(net.parameters()).is_cuda
 
-    net.set_noise(noise_std, add_at=noise_method)
+    net.set_noise(0, add_at=None)
 
     def print_batch_accuracy(data, targets, train=False):
         output, _ = net(data.view(batch_size, -1))
@@ -213,14 +213,21 @@ def train_test_visual(savename, noise_method, noise_std):
                 counter += 1
                 iter_counter +=1
 
+    torch.save(net.state_dict(), savename+'.pt')
+
+    return net, train_loader, test_loader
+
+def test_visual(savename, net, train_loader, test_loader, noise_method='input', noise_std=0):
+
+    net.set_noise(noise_std, add_at=noise_method)
 
     all_test_spk, all_test_mem = [], []
     all_test_data, all_test_targets = [], []
+
     with torch.no_grad():
         net.eval()
         for test_data, test_targets in iter(test_loader):
 		
-            # test_data, test_targets = next(iter(test_loader))
             test_data = test_data.to(device)
             test_targets = test_targets.to(device)
 
@@ -253,23 +260,24 @@ def train_test_visual(savename, noise_method, noise_std):
 
     np.savez(savename+'.npz', inputs=visual_inputs, labels=visual_labels, outputs=spike_outputs)
 
-    torch.save(net.state_dict(), savename+'.pt')
-
 
 if __name__ == '__main__':
 
-    noise_method = 'input'
+    net, train_loader, test_loader = train_visual('visnet_v2')
 
+    noise_method = 'hidden'
     noise_levels = [0., 0.1, 0.2, 0.5, 1.0]
     noise_names = ['0', '0p1', '0p2', '0p5', '1p0']
+
+    noise_levels = noise_levels[1:]
+    noise_names = noise_names[1:]
 
     for i in range(len(noise_levels)):
 
         nl = noise_levels[i]
         nname = noise_names[i]
 
-        print('Training VisNet with {} noise with std of {}'.format(noise_method, nl))
+        print('Testing VisNet with {} noise with std of {}'.format(noise_method, nl))
 
-        train_test_visual('visnet_v2_{}_noise_{}'.format(noise_method, nname),
-                          noise_method=noise_method, noise_std=nl)
-        
+        test_visual('visnet_v2_{}_noise_{}'.format(noise_method, nname),
+                    net, train_loader, test_loader, noise_method=noise_method, noise_std=nl)
