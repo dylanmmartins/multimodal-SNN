@@ -1,0 +1,226 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{
+Integrating noisy multisensory inputs using a spiking neural network}
+
+\author{\IEEEauthorblockN{Lucas Nadolskis}
+\and
+\IEEEauthorblockN{Abby Bertics}
+\and
+\IEEEauthorblockN{Dylan Martins}
+}
+
+\maketitle
+
+% \begin{abstract}
+% [abstract text]
+% \end{abstract}
+
+% \begin{IEEEkeywords}
+% spiking neural network, sensory integration
+% \end{IEEEkeywords}
+
+\section{Introduction}
+Animals sample sensory information from their surroundings in order to understand the environment and drive flexible behavioral responses. It is rare that a single sensory system is used in isolation; information acquired across sensory systems is integrated together to form a single comprehensive representation of the environment. While many animals, including humans, primarily use visual and auditory inputs to probe our surroundings, all animals rely on multiple senses depending on their ethological context and sensory repertoire.
+
+Despite the importance of multi-sensory integration for animal life, neuroscience has traditionally focused on sensory processing using one sensory organ at a time. Consequently, the biological implementation of this canonical computation is not well understood. In particular, how the brain learns to discard information from one sensory system when the inputs become unreliable, as well as compensating for possible disabilities affecting one or more senses,  remains an area of active study for physiologists and computational neuroscientists alike.
+
+Here, we implement a biologically plausible model of multi-sensory integration using three connected spiking neural networks (SNN) which each correspond to broad areas of the mammalian cortex: a visual, auditory, and association network. Following the anatomy of cortex in which projections from a sensory organ (for example, the retina) project to one main area of the brain (visual cortex), which perform requisite computations (edge detection, scene segmentation, etc.) before projecting those signals to higher-order areas of the brain which integrate streams of information to generate representations of the environment in manners that are conducive to planning and executing behavioral action. We then introduce noise to the system, either as noise added to the sensory inputs or jitter in the weights of the final hidden layer of sensory areas, to create ambiguous inputs that reveal the ability of the association area to up-weight or down-weight the sensory networks based on their predictive power. 
+
+Previous work has developed a neural network model to integrate visual and vestibular inputs including so-called “congruent” and “opposite” neurons\cite{b5}. The former integrate information, while the latter determine differences. Together, they enable more complex forms of multisensory integration. Later work locates where this occurs in the brain\cite{b6}. Early single-sensory encoding occurs in the primary sensory cortices. For the purposes of this project, the visual encoding occurs in the visual cortex and the audio in the auditory cortex. Then, the reliability-weighted integration occurs in the parietal-temporal cortices. Finally, causal inference occurs in the frontal lobe. The physical separation of function helped to inform our modelling decision to train the single-sensory networks independently at the beginning and merge in a separate network.
+
+Interestingly for our purposes, Angelaki \textit{et al.}\cite{b2} note that this weighted average of sorts is based on dynamic weights, which change with the reliability of the cues. They note that figuring out the mechanism that computes the cue reliability (and therefore the weight of that single-sensory input) on the fly is still an open question. One way to do this in theory is through divisive normalisation (i.e., increased signal certainty increases the signal strength of one group and because the other is the same, the weight given to the first increases).
+
+The development of Bayesian reasoning is also a potential avenue for future research, since it is shown that while adults are normally Bayesian, this is not the case for children. This points of Bayesian reasoning being related with brain development, which is in itself a relevant computational question.
+
+Psychophysics experiments have shown that humans often act as Bayesian optimal observers when integrating cues from different sources and senses\cite{b1}. In other words, neural representations are probabilistic. So, if an observer is attempting to represent an object in the world, $X$ (i.e., the digit), based on information from two senses, $s_a$ and $s_v$, it can be defined using Bayes’ Rule as
+
+\begin{equation}
+    P(X|s_a,s_v) = \frac{P(s_a|X) P(s_v|X) P(X)}{P(s_a) P(s_v)}
+\end{equation}
+
+for which an ideal observer will find the $X$ that maximizes the posterior. By contrast, an observer that is doing no integration might follow a winner-takes-all approach, where the clearest sensory signal will be the final result.
+
+Although previous studies have suggested that multimodal integration may use nonlinear, or subadditive, combinations \cite{b2}, others show taht Bayesian integration can be accomplished by linearly combining neural activity \cite{b3}. A Poisson-like probabilistic population code, where the number
+
+\begin{equation}
+    P(r|s,g) = \phi(r,g) * exp(h(s)*r)
+\end{equation}
+
+where $r$ is a count of action potentials fired, $h(s)$ is a weighting function, $g$ is gain proportional to the reliability of $s$, and $\phi(r,g)$ is a function of activity and gain. If the sum of tuning curves is constant,
+\begin{equation}
+    \phi(r)=\dfrac{e^{-c}}{prod{r_i!}}
+\end{equation}
+The probability that response $r$ is elicited from the $i$th neuron in the population is given by the Poisson distribution
+\begin{equation}
+    P(r_i|||s)=e-f_i(s)f_i(s)^{\dfrac{r_i}{r_i!}} % ABBY: is i supposed to be a subscript for all of these? i'm just guessing
+\end{equation}
+where $f_i$ is a given neuron's tuning curve over the possible stimuli. They show that if you have two populations of neurons, encoding information using a Poisson-like population code, then Bayes-like cue integration falls out by having a third population of neurons that sums the activities of the first two populations. If the likelihoods are Gaussian (which is a commonly   accepted  assumption), this makes it such that the posterior is swayed more by the distribution with less variance.
+
+\section{Methods}
+
+\subsection{Visual and auditory stimuli}
+For stimuli, we use MNIST hand-written digits as visual stimuli (\url{https://pytorch.org/vision/stable/generated/torchvision.datasets.MNIST.html}) paired with a database of voice recordings of digits spoken aloud (\url{https://github.com/Jakobovski/free-spoken-digit-dataset}). MNIST digits had the shape $(28,28)$ and were flattened to a shape of 784 (Figure 1a). We computed a spectrogram of audio samples with consecutive Fourier transforms for 129 frequencies and 81 time bins (Figure 1b).
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{Picture1.png}}
+\caption{Example stimuli. (a) Visual stimulus, an MNIST digit. (b) Trace of frequency (left) and resulting spectrogram (right) for audio MNIST.}
+\label{fig1}
+\end{figure}
+
+\subsection{Spiking neural network models}
+We implemented spiking neural networks in Python 3.10 using Pytorch 2.2.0 (\href{https://pytorch.org/}) and SNNTorch 0.9.1 (\url{https://snntorch.readthedocs.io/}). Each layer of the SNN networks consisted of a leaky spiking neural layer which returns for each unit both a membrane potential and spike times which are discretized into 81 time bins. All units in all networks used a decay rate of $\beta=0.9$. Each stimulus is passed through the layers for each of the 81 time bins. For visual stimuli, the same image is repeatedly passed through
+spike outputs are determined for each time point, and the membrane potentials of every neuron of the subsequent layers are updated every step. Because auditory data have actual temporal data, each of the steps consists of a new time bin of the spectrogram (i.e., a new bin along the x-axis of the left panel of Figure 1b). The output layer of each network contains 10 units so that we can use a cross entropy loss function in order to compare the neuron with the highest membrane potential at the final timepoint of a stimulus presentation ($t=81$) to the ground truth label of that stimulus.
+
+Visual and auditory networks were trained independently for 3 and 50 epochs, respectively, both with a batch size of 512 and a learning rate of $1*10^{-4}$ using the Adam optimizer. The two sensory networks are trained and have their weights frozen before the association area is trained. Rather than passing the output layers which make an explicit prediction into the integration network as inputs (10 units each, 20 total), we use the final hidden layer (Layer 3) as the input to provide the integration network with a representation of the stimulus rather than the predictions of the sensory areas (20 units each, 40 total). That is, they are not trained end-to-end. The association area is was trained for 10 epochs with a batch size of 512 and a learning rate of 0.01 using the Adam optimizer.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{Picture2.png}}
+\caption{Schematic of the three SNN models.}
+\label{fig2}
+\end{figure}
+
+Network designs are detailed below in Table \ref{nets}.
+
+\begin{table}[htbp]
+\caption{Network layer shapes}
+\begin{center}\label{nets}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Layer}&\multicolumn{3}{|c|}{\textbf{Network}} \\
+\cline{2-4} 
+& \textbf{Visual}& \textbf{Auditory}& \textbf{Integration} \\
+\hline
+1 & (784,1000) & (129,1000) & (40,128) \\
+2 & (1000,1000) & (1000,1000) & (128,128)\\
+3 & (1000,20) & (1000,20) & (128,10)\\
+Output & (20,10) & (20,10) & N/A\\
+\hline
+\end{tabular}
+\label{tab1}
+\end{center}
+\end{table}
+
+\subsection{Noise manipulations}
+To introduce noise to the input stimuli, we generated an array of random integers in the range [-1,1], $A$, for which the number of elements matched the size of the input stimulus, $I$, across time steps, either (784,81) or (129,81) for visual or audio stimuli. This array was then scaled by a scalar factor, $s$ chosen from: [0.0, 0.1, 0.2, 0.5, 1.0].
+
+\begin{equation}
+I_{noisy} = I + (sA)
+\end{equation}
+By manipulating the scale of added noise for visual stimuli, auditory stimuli, or combinations of the two, we are able to study the performance of the integration network and its ability to learn and forget weights for the two sensory inputs.
+
+\section{Results}
+After independent training, the visual network achieved 97.5\% accuracy on a left-out test set of images, with a final training cross entropy loss of 15.19. The auditory network achieved 98.6\% accuracy on a left-out test set if spectrograms, with a final training cross entropy loss of 0.12.
+
+\subsection{Applying random noise to input images}
+
+Spike rates for each unit in the output layer of the visual network (Figure 3a) in response to an example stimulus, for which the ground truth label is ``3''  are used to calculate the summed spike rate (Figure 3c, left) and membrane potential at the final time point (Figure 3c, right). When noise is added to the visual input using a noise scaling value of $s=1.0$, additional spikes appear on other channels (Figure 3b), and the final membrane potential of other units approaches that of the unit matching the correct ground truth label (Figure 3d). This indicates less certainty in the network. However, for this example stimulus, the prediction still correctly matches the ground truth label.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{Picture6.png}}
+\caption{Performance of the visual SNN for a single example stimulus with and without input noise. (a) Visual network output layer spike raster for the 81 time bins of presentation when no added noise. The ground truth label for this stimulus is ``3''. (b) Same as (a), with added noise scaled by $s=1.0$. (c) Summed spike count across output layer units (left), and membrane potential at the final time point across the same channels (right). (d) Same as (c) with the same noise condition as (b).}
+\label{fig}
+\end{figure}
+
+By applying noise scaling values over the range $s=[0.1,1.5]$, we gauge network performance (Figure4a), we gauge the performance of the model across many levels of stimulus ambiguity (Figure 4b).
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{Picture7.png}}
+\caption{Visual SNN performance with added noise. (a) Example of noise levels added to visual stimulus for a single example MNIST image. (b) Performance of the visual SNN on a held-out test set of data for a range of added noise levels corresponding to images in (a).}
+\label{fig}
+\end{figure}
+
+\subsection{Dropping out network units}
+
+This section uses unit dropout to simulate noisy inputs. This is because dropout will be more likely to show clear results, and given the small size of the network, we need all the signal and perturbation possible. Noise is generated as follows: a certain percentage of the 20 input neurons are blanked, and a small number is added so the input isn't zero. If noise is 0.5 for audio, then a randomly chosen half of the first twenty neurons are set to a constant value. If noise is 1.0 for vision, all of the last twenty neurons are set to that constant value.
+
+We first train this smaller multimodal SNN for 5 epochs on noiseless data. This is to establish a baseline. It achieves 84\% accuracy, which is worse than the visual or auditory SNNs alone. We suspect this is because the network is quite small, we did no hyperparameter search, and the training was short. This is okay, because we are just using this as a baseline to see how noise affects its performance, as well as how noise affects subsequent training.
+
+Then, we evaluate the model's performance when various levels of dropout noise are applied to the input. As shown in Figure \ref{figacc} we find that the effect of dropout noise depends heavily on which part of the input it was applied to. Noise applied to the audio section does not have much of an impact. Even when audio is ablated completely, the performance of the network is still quite good. This would mean that the integrator network does not depend that much (if at all) on the signal coming from audio. When noise is added to the visual component, accuracy remains pretty good until only half of the input neurons remain; then it tanks to around 0.4 accuracy, which is still significantly over chance. This implies that the network does in fact leverage audio signal, but it will only do so if the visual signal is significantly reduced. Applying noise to both sections of the input is also interesting, because if the signal/utility of the input were uniform, you would expect the accuracy at the 50\% noise of that to be the same as the accuracy at 100\% of the single-sense noises. This is because those conditions have the same amount of input values set to zero (in the 100\% conditions, both has twice the amount of input values set to zero). But this is not what we see. Half both dropout seems to land halfway in between full audio and full visual dropout. Reassuringly, full dropout reduces accuracy to random.
+
+Overall, this shows that the integrator network learned to rely more on the visual input than the auditory input, but it still uses both. Further analysis would be needed to determine what it is about that visual input that contains more signal than the auditory one, and why.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{droupout-acc.png}}
+\caption{Performance of the integration network for a range of dropout percentages. Dropout noise was added to only the auditory sensory network (blue), only the visual sensory network (orange), or both (green).}
+\label{figacc}
+\end{figure}
+
+Next, we want to see how the network will learn and adapt to various levels of noise. We do this by continuing to train, but on noisy rather than normal data. We find in Figure \ref{fig11} that the first-layer weights that change most are those directly connected to the dropped-out input. These have become quite uniform for each input, as shown in the striped bars. This means that the network is taking less nuanced information from them. This effect propagates slightly to the second row, but is much less pronounced. And by the third layer, it is difficult to localise the cause of changes. Fig \ref{fig7} also shows this, but to lesser of an extent. Future work would be to design the learning algorithm, as CrossEntropyLoss is probably the least interesting or biologically plausible or informative one to use. It would be nice to try to design reweighting to more dynamically change the weights on the basis of a few examples, rather than needing epochs of standard backpropagation. But this sort of analysis would be very necessary to study how networks change from one "learned" state to another, especially as meaningful changes are made to the data. Another avenue would be to use machine learning explainability/interpretability tools, such as Explainers.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{pic14.png}}
+\caption{Training under dropout noise. The left 3x3 is training under 100\% audio and the right visual dropout noise. The first row is weights of the first feed-forward layer; the second the second; the third the third.The first column are the weights after 5 epochs of normal training but before any noisy training. The second column are the weights after 5 additional epochs of noisy training. The third column is the difference, subtracting the first from the second.}
+\label{fig11}
+\end{figure}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\linewidth]{pic15.png}}
+\caption{Same as Fig. \ref{fig11} but with 50\% dropout noise.}
+\label{fig7}
+\end{figure}
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics[width=\linewidth]{Picture9.png}\\\includegraphics[width=\linewidth]{Picture8.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics[width=\linewidth]{Picture10.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics[width=\linewidth]{Picture11.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics{fig1.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics{fig1.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+\section{Discussion}
+The attempt to simulate the inner  works of the brain is  rapidly gaining the interest of machine learners and mathematicians alike. Today, one of the best ways we have to simulate the manner in which neurons integrate information and inform other neurons about future action is by the application of spiking neural networks (SNN). This is due in large portion to the ability of the membrane voltages of readout neurons in the association SNN to maintain accurate performance by relying on the most reliable sensory input while reducing the emphasis of the inputs from the noisy sensory system matches the ability of biological networks to respond flexibly to multiple stimuli of uneven reliability.
+
+Building from this concept, we have created a system of three SNNs to simulate auditory, visual and somatosensory cortices. Respectively these networks trained a purely visual input, a purely auditory input and generate membrane potentials values that were later used by the integration network to generate an action. In our case, the action being classifying 10 digits, that were represented in both visual and audio formats.
+Furthermore, we have modeled the possible noisy aspects of the data. This was done both by adding noise to the input information, which simulated less reliable stimuli, and dropout signals. The latter simulated a possible disability and therefore the lack of presence of one of these inputs after the network have been trained on all possible stimuli. This in our concept simulated the idea that some people loose their ability to see and hear  later in life, after their brain have understood how to integrate visual and auditory stimulation.
+
+Interestingly, our results pointed in the direction that the somatosensory network could still correctly classify with a high degree of accuracy ($\sim$80\%) the digits after the auditory input was noised or dropped, but it could not do the same for visual inputs. This  indicates that this network was considering more the visual network information, then the auditory SNN result. This goes along with the works of the brain, since the majority of our brains is dedicated to vision, and a small portion to listening. Further development of this work would bring high relevance for researching disabilities and simulating the works of a disabled brain.
+
+\section*{Data and code availability}
+All original code is publicly available: \url{https://github.com/dylanmmartins/multimodal-SNN}. All data was modified from publicly available datasets (see Methods).
+
+\begin{thebibliography}{00}
+\bibitem{b1} Knill, D. C., \& Pouget, A. (2004). The Bayesian brain: the role of uncertainty in neural coding and computation. \textit{Trends in neurosciences}, 27(12), 712–719.
+\bibitem{b2} Angelaki, D. E., Gu, Y., \& DeAngelis, G. C. (2009). Multisensory integration: psychophysics, neurophysiology, and computation. \textit{Current opinion in neurobiology}, 19(4), 452–458.
+\bibitem{b3} Ma, W. J., Beck, J. M., Latham, P. E., \& Pouget, A. (2006). Bayesian inference with probabilistic population codes. \textit{Nature neuroscience}, 9(11), 1432–1438.
+\bibitem{b4} Seilheimer, R. L., Rosenberg, A., \& Angelaki, D. E. (2014). Models and processes of multisensory cue combination. \textit{Current opinion in neurobiology}, 25, 38–46.
+\bibitem{b5} Zhang, W. H., Wang, H., Chen, A., Gu, Y., Lee, T. S., Wong, K. M., \& Wu, S. (2019). Complementary congruent and opposite neurons achieve concurrent multisensory integration and segregation. \textit{eLife}, 8, e43753.
+\bibitem{b6} Cao, Y., Summerfield, C., Park, H., Giordano, B. L., \& Kayser, C. (2019). Causal Inference in the Multisensory Brain. \textit{Neuron}, 102(5), 1076–1087.e8.
+\end{thebibliography}
+
+\end{document}
