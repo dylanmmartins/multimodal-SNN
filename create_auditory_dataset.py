@@ -1,16 +1,19 @@
-# write an .npz file of MNIST audio recordings. normalize, do train/test split, etc.
-# spoken MNIST audio wave files from: https://github.com/Jakobovski/free-spoken-digit-dataset/tree/master
+#!/usr/bin/env python
+# coding: utf-8
 
-from scipy.io import wavfile
-from glob import glob
+
+
 import os
 import numpy as np
 import scipy.signal
+from scipy.io import wavfile
+from glob import glob
 
 
 def main(fpath):
+    # write an .npz file of MNIST audio recordings. normalize, do train/test split, etc.
+    # spoken MNIST audio wave files from: https://github.com/Jakobovski/free-spoken-digit-dataset/tree/master
 
-    
     wavfiles = glob(fpath)
     
     # find files and org by digit. append to a list of numpy arrays, then
